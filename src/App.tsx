@@ -3,11 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Home, Info, Twitter, Facebook, Instagram, Check, RotateCcw } from 'lucide-react';
+import { Menu, X, Check, RotateCcw, Info, User, Settings, Trophy, Twitter, Facebook, Instagram } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
 // --- Types ---
+type Difficulty = 'سهل' | 'متوسط' | 'صعب';
+
 interface Question {
   num1: number;
   num2: number;
@@ -19,6 +22,7 @@ interface PlayerState {
   currentQuestion: Question;
   input: string;
   isWrong: boolean;
+  isCorrect: boolean;
 }
 
 const TARGET_SCORE = 100;
@@ -26,24 +30,32 @@ const POINTS_PER_CORRECT = 10;
 
 export default function App() {
   // --- Game State ---
-  const [player1, setPlayer1] = useState<PlayerState>(() => createInitialPlayerState());
-  const [player2, setPlayer2] = useState<PlayerState>(() => createInitialPlayerState());
+  const [difficulty, setDifficulty] = useState<Difficulty>('متوسط');
+  const [player1, setPlayer1] = useState<PlayerState>(() => createInitialPlayerState('متوسط'));
+  const [player2, setPlayer2] = useState<PlayerState>(() => createInitialPlayerState('متوسط'));
   const [winner, setWinner] = useState<number | null>(null);
-  const [showRules, setShowRules] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showHowToPlay, setShowHowToPlay] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
 
   // --- Helpers ---
-  function generateQuestion(): Question {
-    const num1 = Math.floor(Math.random() * 12) + 1;
-    const num2 = Math.floor(Math.random() * 12) + 1;
+  function generateQuestion(diff: Difficulty): Question {
+    let max = 12;
+    if (diff === 'سهل') max = 5;
+    if (diff === 'صعب') max = 20;
+    
+    const num1 = Math.floor(Math.random() * max) + 1;
+    const num2 = Math.floor(Math.random() * max) + 1;
     return { num1, num2, answer: num1 * num2 };
   }
 
-  function createInitialPlayerState(): PlayerState {
+  function createInitialPlayerState(diff: Difficulty): PlayerState {
     return {
       score: 0,
-      currentQuestion: generateQuestion(),
+      currentQuestion: generateQuestion(diff),
       input: '',
       isWrong: false,
+      isCorrect: false,
     };
   }
 
@@ -62,228 +74,382 @@ export default function App() {
           const newScore = prev.score + POINTS_PER_CORRECT;
           if (newScore >= TARGET_SCORE) {
             setWinner(playerNum);
+            confetti({
+              particleCount: 150,
+              spread: 70,
+              origin: { y: 0.6 },
+              colors: playerNum === 1 ? ['#2563eb', '#ffffff'] : ['#ef4444', '#ffffff']
+            });
           }
           return {
             ...prev,
             score: newScore,
-            currentQuestion: generateQuestion(),
+            currentQuestion: generateQuestion(difficulty),
             input: '',
             isWrong: false,
+            isCorrect: true,
           };
         } else {
-          return { ...prev, input: '', isWrong: true };
+          return { ...prev, input: '', isWrong: true, isCorrect: false };
         }
       }
-      // Limit input length
-      if (prev.input.length >= 3) return prev;
-      return { ...prev, input: prev.input + key, isWrong: false };
+      if (prev.input.length >= 4) return prev;
+      return { ...prev, input: prev.input + key, isWrong: false, isCorrect: false };
     });
   };
 
-  // Reset wrong state after animation
+  // Reset feedback states
   useEffect(() => {
-    if (player1.isWrong) {
-      const timer = setTimeout(() => setPlayer1(p => ({ ...p, isWrong: false })), 500);
+    if (player1.isWrong || player1.isCorrect) {
+      const timer = setTimeout(() => setPlayer1(p => ({ ...p, isWrong: false, isCorrect: false })), 600);
       return () => clearTimeout(timer);
     }
-  }, [player1.isWrong]);
+  }, [player1.isWrong, player1.isCorrect]);
 
   useEffect(() => {
-    if (player2.isWrong) {
-      const timer = setTimeout(() => setPlayer2(p => ({ ...p, isWrong: false })), 500);
+    if (player2.isWrong || player2.isCorrect) {
+      const timer = setTimeout(() => setPlayer2(p => ({ ...p, isWrong: false, isCorrect: false })), 600);
       return () => clearTimeout(timer);
     }
-  }, [player2.isWrong]);
+  }, [player2.isWrong, player2.isCorrect]);
 
   const resetGame = () => {
-    setPlayer1(createInitialPlayerState());
-    setPlayer2(createInitialPlayerState());
+    setPlayer1(createInitialPlayerState(difficulty));
+    setPlayer2(createInitialPlayerState(difficulty));
     setWinner(null);
+    setIsSidebarOpen(false);
+  };
+
+  const changeDifficulty = (newDiff: Difficulty) => {
+    setDifficulty(newDiff);
+    setPlayer1(createInitialPlayerState(newDiff));
+    setPlayer2(createInitialPlayerState(newDiff));
+    setWinner(null);
+    setIsSidebarOpen(false);
   };
 
   // --- Components ---
-  const PlayerPanel = ({ player, playerNum, colorClass }: { player: PlayerState, playerNum: 1 | 2, colorClass: string }) => (
-    <div className={`relative flex flex-col items-center justify-start h-full w-full p-6 pt-20 ${colorClass} transition-colors duration-300`}>
-      {/* Wrong Answer Flash */}
+  const PlayerPanel = ({ player, playerNum, color, accentColor }: { player: PlayerState, playerNum: 1 | 2, color: string, accentColor: string }) => (
+    <div className={`relative flex flex-col items-center justify-start h-full w-full p-4 md:p-8 pt-24 ${color} transition-all duration-500 overflow-hidden`}>
+      {/* Feedback Overlays */}
       <AnimatePresence>
         {player.isWrong && (
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.3 }}
+            animate={{ opacity: 0.4 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 bg-red-600 z-10 pointer-events-none"
+            className="absolute inset-0 bg-red-900 z-10 pointer-events-none"
           />
+        )}
+        {player.isCorrect && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.4 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-green-900 z-10 pointer-events-none flex items-center justify-center"
+          >
+             <motion.div initial={{ scale: 0 }} animate={{ scale: 2 }} exit={{ scale: 0 }}>
+                <Check size={100} className="text-white" strokeWidth={4} />
+             </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* Question Box */}
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl p-8 mb-6 flex flex-col items-center justify-center border-b-8 border-gray-200">
-        <span className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-2">اللاعب {playerNum}</span>
-        <div className="text-7xl md:text-8xl font-black text-gray-800 tabular-nums">
-          {player.currentQuestion.num1} × {player.currentQuestion.num2}
+      <motion.div 
+        layout
+        className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl p-8 md:p-12 mb-8 flex flex-col items-center justify-center border-b-[10px] border-black/10"
+      >
+        <span className="text-gray-400 text-sm font-bold uppercase tracking-[0.2em] mb-4">الفريق {playerNum}</span>
+        <div className="text-7xl md:text-9xl font-black text-gray-900 tabular-nums tracking-tighter">
+          {player.currentQuestion.num1} <span className="text-gray-300">×</span> {player.currentQuestion.num2}
         </div>
-      </div>
+      </motion.div>
 
       {/* Input Display */}
-      <div className="w-full max-w-[200px] bg-white rounded-2xl shadow-inner p-4 mb-8 flex items-center justify-center border-4 border-gray-100 min-h-[80px]">
-        <span className="text-5xl font-bold text-gray-700">{player.input || '?'}</span>
+      <div className="w-full max-w-[240px] bg-black/20 rounded-2xl shadow-inner p-6 mb-10 flex items-center justify-center border-2 border-white/10 min-h-[100px]">
+        <AnimatePresence mode="wait">
+          <motion.span 
+            key={player.input}
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="text-6xl font-black text-white drop-shadow-lg"
+          >
+            {player.input || '؟'}
+          </motion.span>
+        </AnimatePresence>
       </div>
 
       {/* Keypad */}
-      <div className="grid grid-cols-3 gap-3 w-full max-w-xs">
+      <div className="grid grid-cols-3 gap-4 w-full max-w-xs">
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
           <button
             key={num}
             onClick={() => handleKeyPress(playerNum, num.toString())}
-            className="aspect-square bg-yellow-400 hover:bg-yellow-300 active:scale-95 transition-all rounded-2xl shadow-[0_6px_0_rgb(202,138,4)] flex items-center justify-center text-3xl font-bold text-yellow-900 border-2 border-yellow-500"
+            className="aspect-square bg-white/10 hover:bg-white/20 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgba(0,0,0,0.2)] flex items-center justify-center text-4xl font-black text-white border border-white/20 backdrop-blur-md"
           >
             {num}
           </button>
         ))}
         <button
           onClick={() => handleKeyPress(playerNum, 'C')}
-          className="aspect-square bg-red-500 hover:bg-red-400 active:scale-95 transition-all rounded-2xl shadow-[0_6px_0_rgb(153,27,27)] flex items-center justify-center text-3xl font-bold text-white border-2 border-red-600"
+          className="aspect-square bg-orange-500 hover:bg-orange-400 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgb(154,52,18)] flex items-center justify-center text-4xl font-black text-white border border-orange-600"
         >
           C
         </button>
         <button
           onClick={() => handleKeyPress(playerNum, '0')}
-          className="aspect-square bg-yellow-400 hover:bg-yellow-300 active:scale-95 transition-all rounded-2xl shadow-[0_6px_0_rgb(202,138,4)] flex items-center justify-center text-3xl font-bold text-yellow-900 border-2 border-yellow-500"
+          className="aspect-square bg-white/10 hover:bg-white/20 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgba(0,0,0,0.2)] flex items-center justify-center text-4xl font-black text-white border border-white/20 backdrop-blur-md"
         >
           0
         </button>
         <button
           onClick={() => handleKeyPress(playerNum, '=')}
-          className="aspect-square bg-emerald-500 hover:bg-emerald-400 active:scale-95 transition-all rounded-2xl shadow-[0_6px_0_rgb(6,95,70)] flex items-center justify-center text-3xl font-bold text-white border-2 border-emerald-600"
+          className="aspect-square bg-emerald-500 hover:bg-emerald-400 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgb(6,78,59)] flex items-center justify-center text-4xl font-black text-white border border-emerald-600"
         >
-          <Check size={40} strokeWidth={3} />
+          <Check size={48} strokeWidth={4} />
         </button>
       </div>
     </div>
   );
 
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden font-sans bg-gray-100" dir="rtl">
+    <div className="flex flex-col h-screen w-full overflow-hidden font-sans bg-slate-950 text-white selection:bg-blue-500/30" dir="rtl">
+      {/* Header & Hamburger */}
+      <header className="fixed top-0 left-0 right-0 z-50 p-6 flex justify-between items-center pointer-events-none">
+        <div className="pointer-events-auto">
+           {/* Empty for balance or logo */}
+        </div>
+        <button 
+          onClick={() => setIsSidebarOpen(true)}
+          className="pointer-events-auto w-14 h-14 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center border border-white/20 shadow-2xl hover:bg-white/20 transition-all active:scale-90"
+        >
+          <Menu size={32} />
+        </button>
+      </header>
+
+      {/* Sidebar Overlay */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsSidebarOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60]"
+            />
+            <motion.div 
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 bottom-0 w-80 bg-slate-900 z-[70] shadow-[-20px_0_50px_rgba(0,0,0,0.5)] p-8 flex flex-col border-l border-white/10"
+            >
+              <div className="flex justify-between items-center mb-12">
+                <h2 className="text-2xl font-black tracking-tight">القائمة</h2>
+                <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+                  <X size={28} />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">مستوى الصعوبة</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['سهل', 'متوسط', 'صعب'] as Difficulty[]).map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => changeDifficulty(d)}
+                        className={`py-3 rounded-xl text-sm font-bold transition-all border ${difficulty === d ? 'bg-blue-600 border-blue-400 shadow-lg shadow-blue-900/40' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button 
+                  onClick={resetGame}
+                  className="w-full flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all border border-white/10 group"
+                >
+                  <div className="w-10 h-10 bg-orange-500/20 text-orange-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <RotateCcw size={20} />
+                  </div>
+                  <span className="font-bold">إعادة ضبط النقاط</span>
+                </button>
+
+                <button 
+                  onClick={() => { setShowHowToPlay(true); setIsSidebarOpen(false); }}
+                  className="w-full flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all border border-white/10 group"
+                >
+                  <div className="w-10 h-10 bg-blue-500/20 text-blue-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Info size={20} />
+                  </div>
+                  <span className="font-bold">طريقة اللعب</span>
+                </button>
+
+                <button 
+                  onClick={() => { setShowAbout(true); setIsSidebarOpen(false); }}
+                  className="w-full flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all border border-white/10 group"
+                >
+                  <div className="w-10 h-10 bg-purple-500/20 text-purple-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <User size={20} />
+                  </div>
+                  <span className="font-bold">عن المطور</span>
+                </button>
+              </div>
+
+              <div className="mt-auto pt-8 border-t border-white/10 text-center">
+                <p className="text-slate-500 text-sm font-medium">Numbers Marathon v2.0</p>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Main Game Area */}
       <div className="flex flex-1 relative">
-        {/* Player 1 - Blue */}
-        <PlayerPanel player={player1} playerNum={1} colorClass="bg-blue-500" />
+        {/* Player 1 - Royal Blue */}
+        <PlayerPanel player={player1} playerNum={1} color="bg-[#2563eb]" accentColor="#1d4ed8" />
 
-        {/* Player 2 - Red */}
-        <PlayerPanel player={player2} playerNum={2} colorClass="bg-red-500" />
+        {/* Player 2 - Coral Red */}
+        <PlayerPanel player={player2} playerNum={2} color="bg-[#ef4444]" accentColor="#dc2626" />
 
-        {/* Central Scoreboard */}
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 z-20 w-64 bg-white rounded-3xl shadow-2xl border-4 border-white flex flex-col items-center p-4 overflow-hidden">
-          <div className="bg-gray-800 text-white px-4 py-1 rounded-full text-xs font-bold mb-3">
+        {/* Central Scoreboard - Glassmorphism */}
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-72 bg-white/10 backdrop-blur-2xl rounded-[32px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col items-center p-6 overflow-hidden">
+          <div className="bg-white/10 text-white/80 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-4 border border-white/10">
             الهدف: {TARGET_SCORE}
           </div>
-          <div className="flex items-center justify-between w-full px-4">
+          <div className="flex items-center justify-between w-full px-2">
             <div className="flex flex-col items-center">
-              <span className="text-blue-600 font-black text-4xl">{player1.score}</span>
-              <span className="text-[10px] font-bold text-gray-400 uppercase">اللاعب 1</span>
+              <motion.span 
+                key={player1.score}
+                initial={{ scale: 1.5, color: '#60a5fa' }}
+                animate={{ scale: 1, color: '#ffffff' }}
+                className="font-black text-5xl md:text-6xl tracking-tighter"
+              >
+                {player1.score}
+              </motion.span>
+              <span className="text-[10px] font-black text-white/40 uppercase mt-1">فريق 1</span>
             </div>
-            <div className="h-10 w-[2px] bg-gray-100 mx-2" />
+            <div className="h-12 w-[1px] bg-white/10 mx-4" />
             <div className="flex flex-col items-center">
-              <span className="text-red-600 font-black text-4xl">{player2.score}</span>
-              <span className="text-[10px] font-bold text-gray-400 uppercase">اللاعب 2</span>
+              <motion.span 
+                key={player2.score}
+                initial={{ scale: 1.5, color: '#f87171' }}
+                animate={{ scale: 1, color: '#ffffff' }}
+                className="font-black text-5xl md:text-6xl tracking-tighter"
+              >
+                {player2.score}
+              </motion.span>
+              <span className="text-[10px] font-black text-white/40 uppercase mt-1">فريق 2</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="h-20 bg-slate-900 flex items-center justify-between px-8 text-white z-30">
-        <div className="flex gap-4">
-          <button className="flex items-center gap-2 hover:text-blue-400 transition-colors font-bold">
-            <Home size={20} />
-            الرئيسية
-          </button>
-          <button 
-            onClick={() => setShowRules(true)}
-            className="flex items-center gap-2 hover:text-blue-400 transition-colors font-bold"
-          >
-            <Info size={20} />
-            قواعد اللعبة
-          </button>
-        </div>
-
-        <div className="flex gap-6">
-          <Twitter className="cursor-pointer hover:text-blue-400 transition-colors" size={20} />
-          <Facebook className="cursor-pointer hover:text-blue-600 transition-colors" size={20} />
-          <Instagram className="cursor-pointer hover:text-pink-500 transition-colors" size={20} />
-        </div>
-      </footer>
-
-      {/* Rules Modal */}
+      {/* Modals (How to Play, About, Winner) */}
       <AnimatePresence>
-        {showRules && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowRules(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border-b-8 border-gray-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Info size={32} />
-              </div>
-              <h2 className="text-2xl font-black text-gray-800 mb-4">قواعد اللعبة</h2>
-              <p className="text-gray-600 leading-relaxed mb-8">
-                كل إجابة صحيحة = 10 نقاط.
-                <br />
-                الفائز من يصل إلى 100 نقطة أولاً.
-              </p>
-              <button
-                onClick={() => setShowRules(false)}
-                className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-2xl shadow-[0_6px_0_rgb(30,58,138)] active:translate-y-1 active:shadow-none transition-all"
-              >
-                فهمت!
-              </button>
-            </motion.div>
-          </motion.div>
+        {showHowToPlay && (
+          <Modal title="طريقة اللعب" onClose={() => setShowHowToPlay(false)}>
+            <div className="space-y-4 text-slate-300 text-right">
+              <p>• تسابق مع صديقك لحل مسائل الضرب بأسرع ما يمكن.</p>
+              <p>• كل إجابة صحيحة تمنحك 10 نقاط.</p>
+              <p>• أول من يصل إلى 100 نقطة يفوز بالماراثون!</p>
+              <p>• استخدم زر (C) للمسح وزر (✔) للتأكيد.</p>
+            </div>
+          </Modal>
         )}
-      </AnimatePresence>
 
-      {/* Win Modal */}
-      <AnimatePresence>
+        {showAbout && (
+          <Modal title="عن المطور" onClose={() => setShowAbout(false)}>
+            <div className="text-center space-y-4">
+              <div className="w-20 h-20 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-3xl mx-auto flex items-center justify-center shadow-xl">
+                <User size={40} className="text-white" />
+              </div>
+              <p className="text-slate-300">تم تطوير هذا التطبيق بواسطة مطور تطبيقات ويب خبير لتقديم تجربة تعليمية ممتعة واحترافية.</p>
+              <div className="flex justify-center gap-4 pt-4">
+                <Twitter className="text-slate-400 hover:text-blue-400 cursor-pointer" />
+                <Facebook className="text-slate-400 hover:text-blue-600 cursor-pointer" />
+                <Instagram className="text-slate-400 hover:text-pink-500 cursor-pointer" />
+              </div>
+            </div>
+          </Modal>
+        )}
+
         {winner && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl"
           >
             <motion.div
-              initial={{ scale: 0.5, rotate: -10 }}
-              animate={{ scale: 1, rotate: 0 }}
-              className="bg-white rounded-[40px] p-10 max-w-md w-full text-center shadow-2xl border-b-[12px] border-gray-200 relative overflow-hidden"
+              initial={{ scale: 0.5, y: 100 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-slate-900 rounded-[48px] p-12 max-w-md w-full text-center shadow-[0_50px_100px_-20px_rgba(0,0,0,1)] border border-white/10 relative overflow-hidden"
             >
-              {/* Confetti-like background elements could go here */}
-              <div className={`w-24 h-24 ${winner === 1 ? 'bg-blue-500' : 'bg-red-500'} text-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg`}>
-                <Check size={48} strokeWidth={4} />
-              </div>
-              <h2 className="text-4xl font-black text-gray-800 mb-2">مبروك!</h2>
-              <p className="text-2xl font-bold mb-8">
-                اللاعب <span className={winner === 1 ? 'text-blue-600' : 'text-red-600'}>{winner}</span> هو الفائز!
+              <div className="absolute inset-0 bg-gradient-to-b from-blue-600/10 to-transparent pointer-events-none" />
+              
+              <motion.div 
+                animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className={`w-28 h-28 ${winner === 1 ? 'bg-blue-600 shadow-blue-500/50' : 'bg-red-600 shadow-red-500/50'} text-white rounded-[32px] flex items-center justify-center mx-auto mb-8 shadow-2xl`}
+              >
+                <Trophy size={56} strokeWidth={2.5} />
+              </motion.div>
+              
+              <h2 className="text-5xl font-black text-white mb-4 tracking-tighter italic">Winner!</h2>
+              <p className="text-2xl font-bold text-slate-400 mb-10">
+                مبروك للفريق <span className={winner === 1 ? 'text-blue-500' : 'text-red-500'}>{winner}</span>
               </p>
+              
               <button
                 onClick={resetGame}
-                className="w-full py-5 bg-emerald-500 hover:bg-emerald-400 text-white text-xl font-black rounded-3xl shadow-[0_8px_0_rgb(6,95,70)] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-3"
+                className="w-full py-6 bg-white text-slate-950 text-xl font-black rounded-3xl shadow-xl hover:bg-slate-200 active:scale-95 transition-all flex items-center justify-center gap-4"
               >
                 <RotateCcw size={24} />
-                إعادة اللعب
+                إعادة التحدي
               </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function Modal({ title, children, onClose }: { title: string, children: ReactNode, onClose: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="bg-slate-900 rounded-[32px] p-8 max-w-sm w-full shadow-2xl border border-white/10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-black">{title}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+        {children}
+        <button
+          onClick={onClose}
+          className="w-full mt-8 py-4 bg-white/10 hover:bg-white/20 text-white font-bold rounded-2xl transition-all border border-white/10"
+        >
+          إغلاق
+        </button>
+      </motion.div>
+    </motion.div>
   );
 }
