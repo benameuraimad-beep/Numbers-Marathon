@@ -130,7 +130,7 @@ export default function App() {
 
   // --- Components ---
   const PlayerPanel = ({ player, playerNum, color, accentColor }: { player: PlayerState, playerNum: 1 | 2, color: string, accentColor: string }) => (
-    <div className={`relative flex flex-col items-center justify-start h-full w-full p-4 md:p-8 pt-24 ${color} transition-all duration-500 overflow-hidden`}>
+    <div className={`relative flex flex-col items-center justify-start h-full w-full p-4 md:p-8 pt-12 ${color} transition-all duration-500 overflow-y-auto custom-scrollbar`}>
       {/* Feedback Overlays */}
       <AnimatePresence>
         {player.isWrong && (
@@ -158,7 +158,7 @@ export default function App() {
       {/* Question Box */}
       <motion.div 
         layout
-        className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl p-8 md:p-12 mb-8 flex flex-col items-center justify-center border-b-[10px] border-black/10"
+        className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl p-6 md:p-10 mb-4 flex flex-col items-center justify-center border-b-[10px] border-black/10"
       >
         <span className="text-gray-400 text-sm font-bold uppercase tracking-[0.2em] mb-4">الفريق {playerNum}</span>
         <div className="text-7xl md:text-9xl font-black text-gray-900 tabular-nums tracking-tighter">
@@ -167,7 +167,7 @@ export default function App() {
       </motion.div>
 
       {/* Input Display */}
-      <div className="w-full max-w-[240px] bg-black/20 rounded-2xl shadow-inner p-6 mb-10 flex items-center justify-center border-2 border-white/10 min-h-[100px]">
+      <div className="w-full max-w-[240px] bg-black/20 rounded-2xl shadow-inner p-4 mb-6 flex items-center justify-center border-2 border-white/10 min-h-[80px]">
         <AnimatePresence mode="wait">
           <motion.span 
             key={player.input}
@@ -186,26 +186,26 @@ export default function App() {
           <button
             key={num}
             onClick={() => handleKeyPress(playerNum, num.toString())}
-            className="aspect-square bg-white/10 hover:bg-white/20 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgba(0,0,0,0.2)] flex items-center justify-center text-4xl font-black text-white border border-white/20 backdrop-blur-md"
+            className="aspect-square bg-white/10 hover:bg-white/20 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgba(0,0,0,0.2)] flex items-center justify-center text-3xl md:text-4xl font-black text-white border border-white/20 backdrop-blur-md"
           >
             {num}
           </button>
         ))}
         <button
           onClick={() => handleKeyPress(playerNum, 'C')}
-          className="aspect-square bg-orange-500 hover:bg-orange-400 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgb(154,52,18)] flex items-center justify-center text-4xl font-black text-white border border-orange-600"
+          className="aspect-square bg-orange-500 hover:bg-orange-400 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgb(154,52,18)] flex items-center justify-center text-3xl md:text-4xl font-black text-white border border-orange-600"
         >
           C
         </button>
         <button
           onClick={() => handleKeyPress(playerNum, '0')}
-          className="aspect-square bg-white/10 hover:bg-white/20 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgba(0,0,0,0.2)] flex items-center justify-center text-4xl font-black text-white border border-white/20 backdrop-blur-md"
+          className="aspect-square bg-white/10 hover:bg-white/20 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgba(0,0,0,0.2)] flex items-center justify-center text-3xl md:text-4xl font-black text-white border border-white/20 backdrop-blur-md"
         >
           0
         </button>
         <button
           onClick={() => handleKeyPress(playerNum, '=')}
-          className="aspect-square bg-emerald-500 hover:bg-emerald-400 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgb(6,78,59)] flex items-center justify-center text-4xl font-black text-white border border-emerald-600"
+          className="aspect-square bg-emerald-500 hover:bg-emerald-400 active:scale-90 transition-all rounded-[20px] shadow-[0_6px_0_rgb(6,78,59)] flex items-center justify-center text-3xl md:text-4xl font-black text-white border border-emerald-600"
         >
           <Check size={48} strokeWidth={4} />
         </button>
@@ -214,7 +214,7 @@ export default function App() {
   );
 
   return (
-    <div className="flex flex-col h-screen w-full overflow-hidden font-sans bg-slate-950 text-white selection:bg-blue-500/30" dir="rtl">
+    <div className="flex flex-col h-screen w-full font-sans bg-slate-950 text-white selection:bg-blue-500/30" dir="rtl">
       {/* Header & Hamburger */}
       <header className="fixed top-0 left-0 right-0 z-50 p-6 flex justify-between items-center pointer-events-none">
         <div className="pointer-events-auto">
@@ -317,8 +317,8 @@ export default function App() {
         <PlayerPanel player={player2} playerNum={2} color="bg-[#ef4444]" accentColor="#dc2626" />
 
         {/* Central Scoreboard - Glassmorphism */}
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-72 bg-white/10 backdrop-blur-2xl rounded-[32px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col items-center p-6 overflow-hidden">
-          <div className="bg-white/10 text-white/80 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mb-4 border border-white/10">
+        <div className="absolute top-4 md:top-12 left-1/2 -translate-x-1/2 z-20 w-64 md:w-72 bg-white/10 backdrop-blur-2xl rounded-[32px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col items-center p-4 md:p-6 overflow-hidden">
+          <div className="bg-white/10 text-white/80 px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] mb-2 md:mb-4 border border-white/10">
             الهدف: {TARGET_SCORE}
           </div>
           <div className="flex items-center justify-between w-full px-2">
@@ -327,7 +327,7 @@ export default function App() {
                 key={player1.score}
                 initial={{ scale: 1.5, color: '#60a5fa' }}
                 animate={{ scale: 1, color: '#ffffff' }}
-                className="font-black text-5xl md:text-6xl tracking-tighter"
+                className="font-black text-4xl md:text-6xl tracking-tighter"
               >
                 {player1.score}
               </motion.span>
@@ -339,7 +339,7 @@ export default function App() {
                 key={player2.score}
                 initial={{ scale: 1.5, color: '#f87171' }}
                 animate={{ scale: 1, color: '#ffffff' }}
-                className="font-black text-5xl md:text-6xl tracking-tighter"
+                className="font-black text-4xl md:text-6xl tracking-tighter"
               >
                 {player2.score}
               </motion.span>
