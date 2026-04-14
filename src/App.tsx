@@ -10,6 +10,8 @@ import confetti from 'canvas-confetti';
 
 // --- Types ---
 type Difficulty = 'سهل' | 'متوسط' | 'صعب';
+type GameMode = 'PvP' | 'PvAI' | null;
+type AIMode = 'Easy' | 'Medium' | 'Impossible';
 
 interface Question {
   num1: number;
@@ -26,6 +28,7 @@ interface PlayerState {
   streak: number;
   hasUsedFreeze: boolean;
   isFrozen: boolean;
+  isThinking?: boolean;
 }
 
 const TARGET_SCORE = 100;
@@ -49,6 +52,8 @@ const SOUNDS = {
 
 export default function App() {
   // --- Game State ---
+  const [gameMode, setGameMode] = useState<GameMode>(null);
+  const [aiMode, setAiMode] = useState<AIMode>('Medium');
   const [difficulty, setDifficulty] = useState<Difficulty>('متوسط');
   const [player1, setPlayer1] = useState<PlayerState>(() => createInitialPlayerState('متوسط'));
   const [player2, setPlayer2] = useState<PlayerState>(() => createInitialPlayerState('متوسط'));
@@ -146,6 +151,55 @@ export default function App() {
     });
   };
 
+  // --- AI Logic ---
+  useEffect(() => {
+    if (gameMode !== 'PvAI' || winner || player2.isFrozen || player2.isThinking) return;
+
+    const solveQuestion = async () => {
+      setPlayer2(prev => ({ ...prev, isThinking: true }));
+      
+      // AI Thinking Delay
+      let delay = 1500;
+      if (aiMode === 'Easy') delay = Math.floor(Math.random() * 2000) + 5000;
+      if (aiMode === 'Medium') delay = Math.floor(Math.random() * 1000) + 3000;
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      if (winner || player2.isFrozen) {
+        setPlayer2(prev => ({ ...prev, isThinking: false }));
+        return;
+      }
+
+      // Determine answer (Accuracy)
+      let accuracy = 1;
+      if (aiMode === 'Easy') accuracy = 0.7;
+      if (aiMode === 'Medium') accuracy = 0.9;
+      
+      const isCorrect = Math.random() < accuracy;
+      const targetAnswer = isCorrect 
+        ? player2.currentQuestion.answer 
+        : player2.currentQuestion.answer + (Math.random() > 0.5 ? 1 : -1);
+      
+      const answerStr = targetAnswer.toString();
+      
+      // Simulate Typing
+      for (let i = 0; i < answerStr.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        if (winner || player2.isFrozen) break;
+        setPlayer2(prev => ({ ...prev, input: prev.input + answerStr[i] }));
+        playSound(SOUNDS.CLICK);
+      }
+
+      if (!winner && !player2.isFrozen) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        handleKeyPress(2, '=');
+      }
+      
+      setPlayer2(prev => ({ ...prev, isThinking: false }));
+    };
+
+    solveQuestion();
+  }, [player2.currentQuestion, gameMode, winner, player2.isFrozen]);
+
   // Reset feedback states
   useEffect(() => {
     if (player1.isWrong || player1.isCorrect) {
@@ -166,6 +220,7 @@ export default function App() {
     setPlayer2(createInitialPlayerState(difficulty));
     setWinner(null);
     setIsSidebarOpen(false);
+    setGameMode(null);
   };
 
   const changeDifficulty = (newDiff: Difficulty) => {
@@ -177,7 +232,10 @@ export default function App() {
   };
 
   // --- Components ---
-  const PlayerPanel = ({ player, playerNum, color, accentColor }: { player: PlayerState, playerNum: 1 | 2, color: string, accentColor: string }) => (
+  const PlayerPanel = ({ player, playerNum, color, accentColor }: { player: PlayerState, playerNum: 1 | 2, color: string, accentColor: string }) => {
+    const isAI = gameMode === 'PvAI' && playerNum === 2;
+    
+    return (
     <div className={`relative flex flex-col items-center justify-start h-full w-full p-4 md:p-8 pt-12 ${color} transition-all duration-500 overflow-y-auto custom-scrollbar ${player.isFrozen ? 'grayscale brightness-50' : ''}`}>
       {/* Feedback Overlays */}
       <AnimatePresence>
@@ -231,14 +289,16 @@ export default function App() {
             </motion.div>
           )}
         </div>
-        <span className="text-gray-400 text-sm font-bold uppercase tracking-[0.2em] mb-4">الفريق {playerNum}</span>
+        <span className="text-gray-400 text-sm font-bold uppercase tracking-[0.2em] mb-4">
+          {isAI ? 'الروبوت الذكي 🤖' : `الفريق ${playerNum}`}
+        </span>
         <div className="text-7xl md:text-9xl font-black text-gray-900 tabular-nums tracking-tighter">
           {player.currentQuestion.num1} <span className="text-gray-300">×</span> {player.currentQuestion.num2}
         </div>
       </motion.div>
 
       {/* Input Display */}
-      <div className="w-full max-w-[240px] bg-black/20 rounded-2xl shadow-inner p-4 mb-6 flex items-center justify-center border-2 border-white/10 min-h-[80px]">
+      <div className="w-full max-w-[240px] bg-black/20 rounded-2xl shadow-inner p-4 mb-6 flex items-center justify-center border-2 border-white/10 min-h-[80px] relative">
         <AnimatePresence mode="wait">
           <motion.span 
             key={player.input}
@@ -249,6 +309,16 @@ export default function App() {
             {player.input || '؟'}
           </motion.span>
         </AnimatePresence>
+        
+        {isAI && player.isThinking && !player.input && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute -bottom-8 text-xs font-bold text-white/60 animate-pulse"
+          >
+            الكمبيوتر يفكر...
+          </motion.div>
+        )}
       </div>
 
       {/* Power-up Button */}
@@ -269,7 +339,7 @@ export default function App() {
       </div>
 
       {/* Keypad */}
-      <div className={`grid grid-cols-3 gap-4 w-full max-w-xs transition-opacity ${player.isFrozen ? 'opacity-20 pointer-events-none' : ''}`}>
+      <div className={`grid grid-cols-3 gap-4 w-full max-w-xs transition-opacity ${player.isFrozen || isAI ? 'opacity-20 pointer-events-none' : ''}`}>
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
           <button
             key={num}
@@ -300,9 +370,67 @@ export default function App() {
       </div>
     </div>
   );
+  };
 
   return (
     <div className="flex flex-col h-screen w-full font-sans bg-slate-950 text-white selection:bg-blue-500/30" dir="rtl">
+      {/* Mode Selection Overlay */}
+      <AnimatePresence>
+        {!gameMode && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950 p-4"
+          >
+            <div className="max-w-md w-full space-y-8">
+              <div className="text-center space-y-4">
+                <h1 className="text-6xl font-black tracking-tighter italic">Numbers Marathon</h1>
+                <p className="text-slate-400 font-bold">اختر وضع اللعب للبدء</p>
+              </div>
+
+              <div className="grid gap-4">
+                <button 
+                  onClick={() => setGameMode('PvP')}
+                  className="p-8 bg-blue-600 hover:bg-blue-500 rounded-[32px] shadow-2xl shadow-blue-900/40 transition-all active:scale-95 flex flex-col items-center gap-4 border-b-8 border-blue-800"
+                >
+                  <User size={48} />
+                  <span className="text-2xl font-black">لاعب ضد لاعب</span>
+                </button>
+
+                <div className="space-y-4">
+                  <button 
+                    onClick={() => setGameMode('PvAI')}
+                    className="w-full p-8 bg-slate-800 hover:bg-slate-700 rounded-[32px] shadow-2xl transition-all active:scale-95 flex flex-col items-center gap-4 border-b-8 border-slate-900"
+                  >
+                    <div className="text-5xl">🤖</div>
+                    <span className="text-2xl font-black">لاعب ضد الكمبيوتر</span>
+                  </button>
+                  
+                  {gameMode === 'PvAI' && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      className="grid grid-cols-3 gap-2 p-2 bg-white/5 rounded-2xl border border-white/10"
+                    >
+                      {(['Easy', 'Medium', 'Impossible'] as AIMode[]).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setAiMode(m)}
+                          className={`py-3 rounded-xl text-xs font-bold transition-all ${aiMode === m ? 'bg-white text-slate-950' : 'hover:bg-white/10'}`}
+                        >
+                          {m === 'Easy' ? 'سهل' : m === 'Medium' ? 'متوسط' : 'مستحيل'}
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header & Hamburger */}
       <header className="fixed top-0 left-0 right-0 z-50 p-6 flex justify-between items-center pointer-events-none">
         <div className="pointer-events-auto">
