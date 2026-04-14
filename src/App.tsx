@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback, ReactNode } from 'react';
+import { useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, X, Check, RotateCcw, Info, User, Settings, Trophy, Twitter, Facebook, Instagram } from 'lucide-react';
+import { Menu, X, Check, RotateCcw, Info, User, Settings, Trophy, Twitter, Facebook, Instagram, Flame, Snowflake } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 // --- Types ---
@@ -23,10 +23,29 @@ interface PlayerState {
   input: string;
   isWrong: boolean;
   isCorrect: boolean;
+  streak: number;
+  hasUsedFreeze: boolean;
+  isFrozen: boolean;
 }
 
 const TARGET_SCORE = 100;
-const POINTS_PER_CORRECT = 10;
+const BASE_POINTS = 10;
+const STREAK_POINTS = 15;
+const STREAK_THRESHOLD = 3;
+
+// --- Audio Helper ---
+const playSound = (url: string) => {
+  const audio = new Audio(url);
+  audio.volume = 0.4;
+  audio.play().catch(() => {}); // Ignore autoplay restrictions
+};
+
+const SOUNDS = {
+  CLICK: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3',
+  CORRECT: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3',
+  WRONG: 'https://assets.mixkit.co/active_storage/sfx/2572/2572-preview.mp3',
+  FREEZE: 'https://assets.mixkit.co/active_storage/sfx/2573/2573-preview.mp3',
+};
 
 export default function App() {
   // --- Game State ---
@@ -56,11 +75,34 @@ export default function App() {
       input: '',
       isWrong: false,
       isCorrect: false,
+      streak: 0,
+      hasUsedFreeze: false,
+      isFrozen: false,
     };
   }
 
+  const useFreeze = (playerNum: 1 | 2) => {
+    if (winner) return;
+    playSound(SOUNDS.FREEZE);
+    
+    if (playerNum === 1) {
+      setPlayer1(prev => ({ ...prev, hasUsedFreeze: true }));
+      setPlayer2(prev => ({ ...prev, isFrozen: true }));
+      setTimeout(() => setPlayer2(prev => ({ ...prev, isFrozen: false })), 3000);
+    } else {
+      setPlayer2(prev => ({ ...prev, hasUsedFreeze: true }));
+      setPlayer1(prev => ({ ...prev, isFrozen: true }));
+      setTimeout(() => setPlayer1(prev => ({ ...prev, isFrozen: false })), 3000);
+    }
+  };
+
   const handleKeyPress = (playerNum: 1 | 2, key: string) => {
     if (winner) return;
+    
+    const currentPlayer = playerNum === 1 ? player1 : player2;
+    if (currentPlayer.isFrozen) return;
+
+    playSound(SOUNDS.CLICK);
 
     const setPlayer = playerNum === 1 ? setPlayer1 : setPlayer2;
 
@@ -71,14 +113,18 @@ export default function App() {
       if (key === '=') {
         const isCorrect = parseInt(prev.input) === prev.currentQuestion.answer;
         if (isCorrect) {
-          const newScore = prev.score + POINTS_PER_CORRECT;
+          playSound(SOUNDS.CORRECT);
+          const newStreak = prev.streak + 1;
+          const points = newStreak >= STREAK_THRESHOLD ? STREAK_POINTS : BASE_POINTS;
+          const newScore = prev.score + points;
+          
           if (newScore >= TARGET_SCORE) {
             setWinner(playerNum);
             confetti({
-              particleCount: 150,
-              spread: 70,
-              origin: { y: 0.6 },
-              colors: playerNum === 1 ? ['#2563eb', '#ffffff'] : ['#ef4444', '#ffffff']
+              particleCount: 200,
+              spread: 90,
+              origin: { y: 0.5 },
+              colors: playerNum === 1 ? ['#2563eb', '#ffffff', '#fbbf24'] : ['#ef4444', '#ffffff', '#fbbf24']
             });
           }
           return {
@@ -88,9 +134,11 @@ export default function App() {
             input: '',
             isWrong: false,
             isCorrect: true,
+            streak: newStreak,
           };
         } else {
-          return { ...prev, input: '', isWrong: true, isCorrect: false };
+          playSound(SOUNDS.WRONG);
+          return { ...prev, input: '', isWrong: true, isCorrect: false, streak: 0 };
         }
       }
       if (prev.input.length >= 4) return prev;
@@ -130,7 +178,7 @@ export default function App() {
 
   // --- Components ---
   const PlayerPanel = ({ player, playerNum, color, accentColor }: { player: PlayerState, playerNum: 1 | 2, color: string, accentColor: string }) => (
-    <div className={`relative flex flex-col items-center justify-start h-full w-full p-4 md:p-8 pt-12 ${color} transition-all duration-500 overflow-y-auto custom-scrollbar`}>
+    <div className={`relative flex flex-col items-center justify-start h-full w-full p-4 md:p-8 pt-12 ${color} transition-all duration-500 overflow-y-auto custom-scrollbar ${player.isFrozen ? 'grayscale brightness-50' : ''}`}>
       {/* Feedback Overlays */}
       <AnimatePresence>
         {player.isWrong && (
@@ -153,13 +201,36 @@ export default function App() {
              </motion.div>
           </motion.div>
         )}
+        {player.isFrozen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none"
+          >
+            <Snowflake size={120} className="text-blue-200 animate-pulse" />
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Question Box */}
       <motion.div 
         layout
-        className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl p-6 md:p-10 mb-4 flex flex-col items-center justify-center border-b-[10px] border-black/10"
+        animate={player.isWrong ? { x: [-10, 10, -10, 10, 0] } : {}}
+        className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl p-6 md:p-10 mb-4 flex flex-col items-center justify-center border-b-[10px] border-black/10 relative"
       >
+        <div className="absolute top-4 right-6 flex items-center gap-1">
+          {player.streak >= STREAK_THRESHOLD && (
+            <motion.div 
+              initial={{ scale: 0 }} 
+              animate={{ scale: 1 }} 
+              className="flex items-center gap-1 bg-orange-100 text-orange-600 px-2 py-1 rounded-full text-xs font-bold"
+            >
+              <Flame size={14} className="fill-orange-600" />
+              <span>{player.streak}</span>
+            </motion.div>
+          )}
+        </div>
         <span className="text-gray-400 text-sm font-bold uppercase tracking-[0.2em] mb-4">الفريق {playerNum}</span>
         <div className="text-7xl md:text-9xl font-black text-gray-900 tabular-nums tracking-tighter">
           {player.currentQuestion.num1} <span className="text-gray-300">×</span> {player.currentQuestion.num2}
@@ -180,8 +251,25 @@ export default function App() {
         </AnimatePresence>
       </div>
 
+      {/* Power-up Button */}
+      <div className="h-16 mb-4">
+        {player.score >= 40 && !player.hasUsedFreeze && !player.isFrozen && (
+          <motion.button
+            initial={{ scale: 0, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => useFreeze(playerNum)}
+            className="bg-blue-400 text-white px-6 py-3 rounded-2xl font-black shadow-lg flex items-center gap-2 border-b-4 border-blue-600"
+          >
+            <Snowflake size={20} />
+            تجميد!
+          </motion.button>
+        )}
+      </div>
+
       {/* Keypad */}
-      <div className="grid grid-cols-3 gap-4 w-full max-w-xs">
+      <div className={`grid grid-cols-3 gap-4 w-full max-w-xs transition-opacity ${player.isFrozen ? 'opacity-20 pointer-events-none' : ''}`}>
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
           <button
             key={num}
@@ -356,8 +444,9 @@ export default function App() {
             <div className="space-y-4 text-slate-300 text-right">
               <p>• تسابق مع صديقك لحل مسائل الضرب بأسرع ما يمكن.</p>
               <p>• كل إجابة صحيحة تمنحك 10 نقاط.</p>
+              <p>• <span className="text-orange-400 font-bold">نظام Streak:</span> 3 إجابات صحيحة متتالية تمنحك 15 نقطة لكل إجابة تالية!</p>
+              <p>• <span className="text-blue-400 font-bold">تجميد:</span> عند الوصول لـ 40 نقطة، يمكنك تجميد الخصم لـ 3 ثوانٍ.</p>
               <p>• أول من يصل إلى 100 نقطة يفوز بالماراثون!</p>
-              <p>• استخدم زر (C) للمسح وزر (✔) للتأكيد.</p>
             </div>
           </Modal>
         )}
@@ -400,7 +489,7 @@ export default function App() {
                 <Trophy size={56} strokeWidth={2.5} />
               </motion.div>
               
-              <h2 className="text-5xl font-black text-white mb-4 tracking-tighter italic">Winner!</h2>
+              <h2 className="text-5xl font-black text-white mb-4 tracking-tighter italic">الملك وصل لـ 100!</h2>
               <p className="text-2xl font-bold text-slate-400 mb-10">
                 مبروك للفريق <span className={winner === 1 ? 'text-blue-500' : 'text-red-500'}>{winner}</span>
               </p>
