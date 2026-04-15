@@ -318,7 +318,7 @@ export default function App() {
     const isOnStreak = player.streak >= STREAK_THRESHOLD;
     
     return (
-    <div className={`relative flex flex-col items-center justify-start min-h-screen h-auto w-full p-4 md:p-8 pt-12 pb-[50px] ${color} transition-all duration-500 ${player.isFrozen ? 'grayscale brightness-50' : ''}`}>
+    <div className={`relative flex flex-col items-center justify-start min-h-screen h-auto w-full p-4 md:p-8 pt-24 md:pt-32 pb-[50px] ${color} transition-all duration-500 ${player.isFrozen ? 'grayscale brightness-50' : ''}`}>
       {/* Feedback Overlays */}
       <AnimatePresence>
         {player.isWrong && (
@@ -701,7 +701,7 @@ export default function App() {
         <PlayerPanel player={player2} playerNum={2} color={theme.p2} accentColor="#dc2626" />
 
         {/* Central Scoreboard - Glassmorphism */}
-        <div className="absolute top-4 md:top-12 left-1/2 -translate-x-1/2 z-20 w-64 md:w-72 bg-white/10 backdrop-blur-2xl rounded-[32px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col items-center p-4 md:p-6 overflow-hidden">
+        <div className="absolute top-2 md:top-4 left-1/2 -translate-x-1/2 z-20 w-64 md:w-72 bg-white/10 backdrop-blur-2xl rounded-[32px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col items-center p-4 md:p-6 overflow-hidden">
           <div className="flex items-center gap-2 mb-2 md:mb-4">
             <div className="bg-white/10 text-white/80 px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] border border-white/10">
               الهدف: {TARGET_SCORE}
