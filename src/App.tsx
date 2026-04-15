@@ -13,6 +13,46 @@ type Difficulty = 'سهل' | 'متوسط' | 'صعب';
 type GameMode = 'PvP' | 'PvAI' | null;
 type AIMode = 'Easy' | 'Medium' | 'Impossible';
 type MathOperation = 'addition' | 'subtraction' | 'multiplication' | 'division' | 'mixed';
+type ThemeType = 'Classic' | 'Dark' | 'Cyberpunk' | 'Neon';
+
+interface Theme {
+  name: ThemeType;
+  bg: string;
+  p1: string;
+  p2: string;
+  accent: string;
+}
+
+const THEMES: Record<ThemeType, Theme> = {
+  Classic: {
+    name: 'Classic',
+    bg: 'bg-slate-950',
+    p1: 'bg-[#2563eb]',
+    p2: 'bg-[#ef4444]',
+    accent: 'text-blue-500',
+  },
+  Dark: {
+    name: 'Dark',
+    bg: 'bg-black',
+    p1: 'bg-zinc-900',
+    p2: 'bg-zinc-800',
+    accent: 'text-zinc-400',
+  },
+  Cyberpunk: {
+    name: 'Cyberpunk',
+    bg: 'bg-[#000b1e]',
+    p1: 'bg-[#ff0055]',
+    p2: 'bg-[#00ff9f]',
+    accent: 'text-[#ff0055]',
+  },
+  Neon: {
+    name: 'Neon',
+    bg: 'bg-[#0d0221]',
+    p1: 'bg-[#7a04eb]',
+    p2: 'bg-[#fe019a]',
+    accent: 'text-[#2af598]',
+  },
+};
 
 interface Question {
   num1: number;
@@ -58,6 +98,7 @@ export default function App() {
   const [selectedOperation, setSelectedOperation] = useState<MathOperation | null>(null);
   const [aiMode, setAiMode] = useState<AIMode>('Medium');
   const [difficulty, setDifficulty] = useState<Difficulty>('متوسط');
+  const [theme, setTheme] = useState<Theme>(THEMES.Classic);
   const [player1, setPlayer1] = useState<PlayerState>(() => createInitialPlayerState('متوسط', 'multiplication'));
   const [player2, setPlayer2] = useState<PlayerState>(() => createInitialPlayerState('متوسط', 'multiplication'));
   const [winner, setWinner] = useState<number | null>(null);
@@ -274,6 +315,7 @@ export default function App() {
   // --- Components ---
   const PlayerPanel = ({ player, playerNum, color, accentColor }: { player: PlayerState, playerNum: 1 | 2, color: string, accentColor: string }) => {
     const isAI = gameMode === 'PvAI' && playerNum === 2;
+    const isOnStreak = player.streak >= STREAK_THRESHOLD;
     
     return (
     <div className={`relative flex flex-col items-center justify-start h-full w-full p-4 md:p-8 pt-12 ${color} transition-all duration-500 overflow-y-auto custom-scrollbar ${player.isFrozen ? 'grayscale brightness-50' : ''}`}>
@@ -294,7 +336,12 @@ export default function App() {
             exit={{ opacity: 0 }}
             className="absolute inset-0 bg-green-900 z-10 pointer-events-none flex items-center justify-center"
           >
-             <motion.div initial={{ scale: 0 }} animate={{ scale: 2 }} exit={{ scale: 0 }}>
+             <motion.div 
+               initial={{ scale: 0 }} 
+               animate={{ scale: [0, 2.5, 2] }} 
+               exit={{ scale: 0 }}
+               transition={{ duration: 0.5, ease: "backOut" }}
+             >
                 <Check size={100} className="text-white" strokeWidth={4} />
              </motion.div>
           </motion.div>
@@ -314,18 +361,20 @@ export default function App() {
       {/* Question Box */}
       <motion.div 
         layout
-        animate={player.isWrong ? { x: [-10, 10, -10, 10, 0] } : {}}
-        className="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl p-6 md:p-10 mb-4 flex flex-col items-center justify-center border-b-[10px] border-black/10 relative"
+        animate={player.isWrong ? { x: [-10, 10, -10, 10, 0] } : player.isCorrect ? { scale: [1, 1.05, 1] } : {}}
+        className={`w-full max-w-md bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl p-6 md:p-10 mb-4 flex flex-col items-center justify-center border-b-[10px] border-black/10 relative transition-all ${isOnStreak ? 'ring-4 ring-orange-500 glow-box' : ''}`}
+        style={{ color: isOnStreak ? '#f97316' : 'inherit' }}
       >
         <div className="absolute top-4 right-6 flex items-center gap-1">
-          {player.streak >= STREAK_THRESHOLD && (
+          {isOnStreak && (
             <motion.div 
               initial={{ scale: 0 }} 
-              animate={{ scale: 1 }} 
-              className="flex items-center gap-1 bg-orange-100 text-orange-600 px-2 py-1 rounded-full text-xs font-bold"
+              animate={{ scale: [1, 1.2, 1] }} 
+              transition={{ repeat: Infinity, duration: 1 }}
+              className="flex items-center gap-1 bg-orange-100 text-orange-600 px-2 py-1 rounded-full text-xs font-bold shadow-lg"
             >
               <Flame size={14} className="fill-orange-600" />
-              <span>{player.streak}</span>
+              <span>{player.streak} COMBO!</span>
             </motion.div>
           )}
         </div>
@@ -413,7 +462,12 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full font-sans bg-slate-950 text-white selection:bg-blue-500/30" dir="rtl">
+    <div className={`flex flex-col h-screen w-full font-sans ${theme.bg} text-white selection:bg-blue-500/30 overflow-hidden relative animate-gradient`} dir="rtl">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }} />
+      </div>
       {/* Mode Selection Overlay */}
       <AnimatePresence>
         {!gameMode && (
@@ -611,6 +665,23 @@ export default function App() {
                   </div>
                   <span className="font-bold">عن المطور</span>
                 </button>
+
+                <div className="space-y-3 pt-4 border-t border-white/10">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                    <Settings size={14} /> متجر الثيمات (Legendary)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Object.keys(THEMES) as ThemeType[]).map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setTheme(THEMES[t])}
+                        className={`py-3 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-2 ${theme.name === t ? 'bg-white text-slate-950 border-white shadow-lg' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                      >
+                        {t === 'Classic' ? '🎮 كلاسيك' : t === 'Dark' ? '🌑 ليلي' : t === 'Cyberpunk' ? '⚡ سايبر' : '🌈 نيون'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div className="mt-auto pt-8 border-t border-white/10 text-center">
@@ -623,11 +694,11 @@ export default function App() {
 
       {/* Main Game Area */}
       <div className="flex flex-1 relative">
-        {/* Player 1 - Royal Blue */}
-        <PlayerPanel player={player1} playerNum={1} color="bg-[#2563eb]" accentColor="#1d4ed8" />
+        {/* Player 1 */}
+        <PlayerPanel player={player1} playerNum={1} color={theme.p1} accentColor="#1d4ed8" />
 
-        {/* Player 2 - Coral Red */}
-        <PlayerPanel player={player2} playerNum={2} color="bg-[#ef4444]" accentColor="#dc2626" />
+        {/* Player 2 */}
+        <PlayerPanel player={player2} playerNum={2} color={theme.p2} accentColor="#dc2626" />
 
         {/* Central Scoreboard - Glassmorphism */}
         <div className="absolute top-4 md:top-12 left-1/2 -translate-x-1/2 z-20 w-64 md:w-72 bg-white/10 backdrop-blur-2xl rounded-[32px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col items-center p-4 md:p-6 overflow-hidden">
@@ -649,8 +720,12 @@ export default function App() {
               <motion.span 
                 key={player1.score}
                 initial={{ scale: 1.5, color: '#60a5fa' }}
-                animate={{ scale: 1, color: '#ffffff' }}
-                className="font-black text-4xl md:text-6xl tracking-tighter"
+                animate={{ 
+                  scale: 1, 
+                  color: '#ffffff',
+                  textShadow: player1.streak >= STREAK_THRESHOLD ? '0 0 20px #f97316' : 'none'
+                }}
+                className={`font-black text-4xl md:text-6xl tracking-tighter ${player1.streak >= STREAK_THRESHOLD ? 'text-orange-500 animate-pulse' : ''}`}
               >
                 {player1.score}
               </motion.span>
@@ -661,8 +736,12 @@ export default function App() {
               <motion.span 
                 key={player2.score}
                 initial={{ scale: 1.5, color: '#f87171' }}
-                animate={{ scale: 1, color: '#ffffff' }}
-                className="font-black text-4xl md:text-6xl tracking-tighter"
+                animate={{ 
+                  scale: 1, 
+                  color: '#ffffff',
+                  textShadow: player2.streak >= STREAK_THRESHOLD ? '0 0 20px #f97316' : 'none'
+                }}
+                className={`font-black text-4xl md:text-6xl tracking-tighter ${player2.streak >= STREAK_THRESHOLD ? 'text-orange-500 animate-pulse' : ''}`}
               >
                 {player2.score}
               </motion.span>
@@ -717,14 +796,18 @@ export default function App() {
               <div className="absolute inset-0 bg-gradient-to-b from-blue-600/10 to-transparent pointer-events-none" />
               
               <motion.div 
-                animate={{ rotate: [0, 10, -10, 0], scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 2 }}
-                className={`w-28 h-28 ${winner === 1 ? 'bg-blue-600 shadow-blue-500/50' : 'bg-red-600 shadow-red-500/50'} text-white rounded-[32px] flex items-center justify-center mx-auto mb-8 shadow-2xl`}
+                animate={{ 
+                  rotate: [0, 10, -10, 0], 
+                  scale: [1, 1.2, 1],
+                  y: [0, -20, 0]
+                }}
+                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                className={`w-32 h-32 ${winner === 1 ? 'bg-blue-600 shadow-blue-500/50' : 'bg-red-600 shadow-red-500/50'} text-white rounded-[40px] flex items-center justify-center mx-auto mb-8 shadow-2xl glow-box`}
               >
-                <Trophy size={56} strokeWidth={2.5} />
+                <Trophy size={64} strokeWidth={2.5} className="drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]" />
               </motion.div>
               
-              <h2 className="text-5xl font-black text-white mb-4 tracking-tighter italic">الملك وصل لـ 100!</h2>
+              <h2 className="text-5xl font-black text-white mb-4 tracking-tighter italic glow-text">الملك وصل لـ 100!</h2>
               <p className="text-2xl font-bold text-slate-400 mb-10">
                 مبروك للفريق <span className={winner === 1 ? 'text-blue-500' : 'text-red-500'}>{winner}</span>
               </p>
