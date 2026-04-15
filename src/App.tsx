@@ -318,7 +318,7 @@ export default function App() {
     const isOnStreak = player.streak >= STREAK_THRESHOLD;
     
     return (
-    <div className={`relative flex flex-col items-center justify-start h-full w-full p-4 md:p-8 pt-12 ${color} transition-all duration-500 overflow-y-auto custom-scrollbar ${player.isFrozen ? 'grayscale brightness-50' : ''}`}>
+    <div className={`relative flex flex-col items-center justify-start min-h-screen h-auto w-full p-4 md:p-8 pt-12 pb-[50px] ${color} transition-all duration-500 ${player.isFrozen ? 'grayscale brightness-50' : ''}`}>
       {/* Feedback Overlays */}
       <AnimatePresence>
         {player.isWrong && (
@@ -362,7 +362,7 @@ export default function App() {
       <motion.div 
         layout
         animate={player.isWrong ? { x: [-10, 10, -10, 10, 0] } : player.isCorrect ? { scale: [1, 1.05, 1] } : {}}
-        className={`w-full max-w-md bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl p-6 md:p-10 mb-4 flex flex-col items-center justify-center border-b-[10px] border-black/10 relative transition-all ${isOnStreak ? 'ring-4 ring-orange-500 glow-box' : ''}`}
+        className={`w-full max-w-md bg-white/95 backdrop-blur-sm rounded-[32px] shadow-2xl p-4 md:p-8 mb-2 flex flex-col items-center justify-center border-b-[10px] border-black/10 relative transition-all ${isOnStreak ? 'ring-4 ring-orange-500 glow-box' : ''}`}
         style={{ color: isOnStreak ? '#f97316' : 'inherit' }}
       >
         <div className="absolute top-4 right-6 flex items-center gap-1">
@@ -387,7 +387,7 @@ export default function App() {
       </motion.div>
 
       {/* Input Display */}
-      <div className="w-full max-w-[240px] bg-black/20 rounded-2xl shadow-inner p-4 mb-6 flex items-center justify-center border-2 border-white/10 min-h-[80px] relative">
+      <div className="w-full max-w-[200px] bg-black/20 rounded-2xl shadow-inner p-2 mb-4 flex items-center justify-center border-2 border-white/10 min-h-[60px] relative">
         <AnimatePresence mode="wait">
           <motion.span 
             key={player.input}
@@ -411,7 +411,7 @@ export default function App() {
       </div>
 
       {/* Power-up Button */}
-      <div className="h-16 mb-4">
+      <div className="h-12 mb-2">
         {player.score >= 40 && !player.hasUsedFreeze && !player.isFrozen && (
           <motion.button
             initial={{ scale: 0, rotate: -20 }}
@@ -428,7 +428,7 @@ export default function App() {
       </div>
 
       {/* Keypad */}
-      <div className={`grid grid-cols-3 gap-4 w-full max-w-xs transition-opacity ${player.isFrozen || isAI ? 'opacity-20 pointer-events-none' : ''}`}>
+      <div className={`grid grid-cols-3 gap-3 w-full max-w-xs transition-opacity flex-shrink-0 ${player.isFrozen || isAI ? 'opacity-20 pointer-events-none' : ''}`}>
         {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
           <button
             key={num}
@@ -462,7 +462,7 @@ export default function App() {
   };
 
   return (
-    <div className={`flex flex-col h-screen w-full font-sans ${theme.bg} text-white selection:bg-blue-500/30 overflow-hidden relative animate-gradient`} dir="rtl">
+    <div className={`flex flex-col min-h-screen w-full font-sans ${theme.bg} text-white selection:bg-blue-500/30 overflow-y-auto relative animate-gradient`} dir="rtl">
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500 rounded-full blur-[120px] animate-pulse" />
@@ -693,7 +693,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Main Game Area */}
-      <div className="flex flex-1 relative">
+      <div className="flex flex-1 relative min-h-screen">
         {/* Player 1 */}
         <PlayerPanel player={player1} playerNum={1} color={theme.p1} accentColor="#1d4ed8" />
 
