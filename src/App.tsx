@@ -12,11 +12,13 @@ import confetti from 'canvas-confetti';
 type Difficulty = 'سهل' | 'متوسط' | 'صعب';
 type GameMode = 'PvP' | 'PvAI' | null;
 type AIMode = 'Easy' | 'Medium' | 'Impossible';
+type MathOperation = 'addition' | 'subtraction' | 'multiplication' | 'division' | 'mixed';
 
 interface Question {
   num1: number;
   num2: number;
   answer: number;
+  symbol: string;
 }
 
 interface PlayerState {
@@ -53,30 +55,67 @@ const SOUNDS = {
 export default function App() {
   // --- Game State ---
   const [gameMode, setGameMode] = useState<GameMode>(null);
+  const [selectedOperation, setSelectedOperation] = useState<MathOperation | null>(null);
   const [aiMode, setAiMode] = useState<AIMode>('Medium');
   const [difficulty, setDifficulty] = useState<Difficulty>('متوسط');
-  const [player1, setPlayer1] = useState<PlayerState>(() => createInitialPlayerState('متوسط'));
-  const [player2, setPlayer2] = useState<PlayerState>(() => createInitialPlayerState('متوسط'));
+  const [player1, setPlayer1] = useState<PlayerState>(() => createInitialPlayerState('متوسط', 'multiplication'));
+  const [player2, setPlayer2] = useState<PlayerState>(() => createInitialPlayerState('متوسط', 'multiplication'));
   const [winner, setWinner] = useState<number | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
 
   // --- Helpers ---
-  function generateQuestion(diff: Difficulty): Question {
-    let max = 12;
-    if (diff === 'سهل') max = 5;
-    if (diff === 'صعب') max = 20;
-    
-    const num1 = Math.floor(Math.random() * max) + 1;
-    const num2 = Math.floor(Math.random() * max) + 1;
-    return { num1, num2, answer: num1 * num2 };
+  function generateQuestion(diff: Difficulty, op: MathOperation): Question {
+    let currentOp = op;
+    if (op === 'mixed') {
+      const ops: MathOperation[] = ['addition', 'subtraction', 'multiplication', 'division'];
+      currentOp = ops[Math.floor(Math.random() * ops.length)];
+    }
+
+    let num1 = 0, num2 = 0, answer = 0, symbol = '';
+
+    switch (currentOp) {
+      case 'addition':
+        num1 = Math.floor(Math.random() * 100) + 1;
+        num2 = Math.floor(Math.random() * 100) + 1;
+        answer = num1 + num2;
+        symbol = '+';
+        break;
+      case 'subtraction':
+        num1 = Math.floor(Math.random() * 100) + 1;
+        num2 = Math.floor(Math.random() * num1) + 1; // Ensure positive result
+        answer = num1 - num2;
+        symbol = '-';
+        break;
+      case 'multiplication':
+        let multMax = 12;
+        if (diff === 'سهل') multMax = 5;
+        if (diff === 'صعب') multMax = 20;
+        num1 = Math.floor(Math.random() * multMax) + 1;
+        num2 = Math.floor(Math.random() * multMax) + 1;
+        answer = num1 * num2;
+        symbol = '×';
+        break;
+      case 'division':
+        let divMax = 10;
+        if (diff === 'صعب') divMax = 15;
+        const divisor = Math.floor(Math.random() * divMax) + 1;
+        const quotient = Math.floor(Math.random() * divMax) + 1;
+        num1 = divisor * quotient;
+        num2 = divisor;
+        answer = quotient;
+        symbol = '÷';
+        break;
+    }
+
+    return { num1, num2, answer, symbol };
   }
 
-  function createInitialPlayerState(diff: Difficulty): PlayerState {
+  function createInitialPlayerState(diff: Difficulty, op: MathOperation): PlayerState {
     return {
       score: 0,
-      currentQuestion: generateQuestion(diff),
+      currentQuestion: generateQuestion(diff, op),
       input: '',
       isWrong: false,
       isCorrect: false,
@@ -135,7 +174,7 @@ export default function App() {
           return {
             ...prev,
             score: newScore,
-            currentQuestion: generateQuestion(difficulty),
+            currentQuestion: generateQuestion(difficulty, selectedOperation || 'multiplication'),
             input: '',
             isWrong: false,
             isCorrect: true,
@@ -216,17 +255,18 @@ export default function App() {
   }, [player2.isWrong, player2.isCorrect]);
 
   const resetGame = () => {
-    setPlayer1(createInitialPlayerState(difficulty));
-    setPlayer2(createInitialPlayerState(difficulty));
+    setPlayer1(createInitialPlayerState(difficulty, selectedOperation || 'multiplication'));
+    setPlayer2(createInitialPlayerState(difficulty, selectedOperation || 'multiplication'));
     setWinner(null);
     setIsSidebarOpen(false);
     setGameMode(null);
+    setSelectedOperation(null);
   };
 
   const changeDifficulty = (newDiff: Difficulty) => {
     setDifficulty(newDiff);
-    setPlayer1(createInitialPlayerState(newDiff));
-    setPlayer2(createInitialPlayerState(newDiff));
+    setPlayer1(createInitialPlayerState(newDiff, selectedOperation || 'multiplication'));
+    setPlayer2(createInitialPlayerState(newDiff, selectedOperation || 'multiplication'));
     setWinner(null);
     setIsSidebarOpen(false);
   };
@@ -293,7 +333,7 @@ export default function App() {
           {isAI ? 'الروبوت الذكي 🤖' : `الفريق ${playerNum}`}
         </span>
         <div className="text-7xl md:text-9xl font-black text-gray-900 tabular-nums tracking-tighter">
-          {player.currentQuestion.num1} <span className="text-gray-300">×</span> {player.currentQuestion.num2}
+          {player.currentQuestion.num1} <span className="text-gray-300">{player.currentQuestion.symbol}</span> {player.currentQuestion.num2}
         </div>
       </motion.div>
 
@@ -429,6 +469,63 @@ export default function App() {
             </div>
           </motion.div>
         )}
+
+        {gameMode && !selectedOperation && (
+          <motion.div 
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -100 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950 p-4"
+          >
+            <div className="max-w-2xl w-full space-y-8">
+              <div className="text-center space-y-4">
+                <h2 className="text-5xl font-black tracking-tighter italic">اختر العملية</h2>
+                <p className="text-slate-400 font-bold">حدد نوع المسائل التي تريد حلها</p>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { id: 'addition', label: 'الجمع', symbol: '+', color: 'bg-emerald-600' },
+                  { id: 'subtraction', label: 'الطرح', symbol: '-', color: 'bg-orange-600' },
+                  { id: 'multiplication', label: 'الضرب', symbol: '×', color: 'bg-blue-600' },
+                  { id: 'division', label: 'القسمة', symbol: '÷', color: 'bg-purple-600' },
+                ].map((op) => (
+                  <button 
+                    key={op.id}
+                    onClick={() => {
+                      setSelectedOperation(op.id as MathOperation);
+                      setPlayer1(createInitialPlayerState(difficulty, op.id as MathOperation));
+                      setPlayer2(createInitialPlayerState(difficulty, op.id as MathOperation));
+                    }}
+                    className={`p-6 ${op.color} hover:brightness-110 rounded-[32px] shadow-xl transition-all active:scale-95 flex flex-col items-center gap-2 border-b-8 border-black/20`}
+                  >
+                    <span className="text-5xl font-black">{op.symbol}</span>
+                    <span className="font-black">{op.label}</span>
+                  </button>
+                ))}
+              </div>
+              
+              <button 
+                onClick={() => {
+                  setSelectedOperation('mixed');
+                  setPlayer1(createInitialPlayerState(difficulty, 'mixed'));
+                  setPlayer2(createInitialPlayerState(difficulty, 'mixed'));
+                }}
+                className="w-full p-6 bg-gradient-to-r from-indigo-600 to-pink-600 hover:brightness-110 rounded-[32px] shadow-xl transition-all active:scale-95 flex flex-col items-center gap-2 border-b-8 border-black/20"
+              >
+                <span className="text-3xl font-black">🔀</span>
+                <span className="text-xl font-black">التحدي المختلط (Mixed)</span>
+              </button>
+
+              <button 
+                onClick={() => setGameMode(null)}
+                className="w-full py-4 text-slate-400 font-bold hover:text-white transition-colors"
+              >
+                ← العودة لاختيار الوضع
+              </button>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Header & Hamburger */}
@@ -492,7 +589,7 @@ export default function App() {
                   <div className="w-10 h-10 bg-orange-500/20 text-orange-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                     <RotateCcw size={20} />
                   </div>
-                  <span className="font-bold">إعادة ضبط النقاط</span>
+                  <span className="font-bold">العودة للقائمة الرئيسية</span>
                 </button>
 
                 <button 
@@ -534,8 +631,18 @@ export default function App() {
 
         {/* Central Scoreboard - Glassmorphism */}
         <div className="absolute top-4 md:top-12 left-1/2 -translate-x-1/2 z-20 w-64 md:w-72 bg-white/10 backdrop-blur-2xl rounded-[32px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] border border-white/20 flex flex-col items-center p-4 md:p-6 overflow-hidden">
-          <div className="bg-white/10 text-white/80 px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] mb-2 md:mb-4 border border-white/10">
-            الهدف: {TARGET_SCORE}
+          <div className="flex items-center gap-2 mb-2 md:mb-4">
+            <div className="bg-white/10 text-white/80 px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] border border-white/10">
+              الهدف: {TARGET_SCORE}
+            </div>
+            {selectedOperation && (
+              <div className="bg-white/20 text-white px-2 py-1 rounded-lg text-xs font-black">
+                {selectedOperation === 'addition' ? '+' : 
+                 selectedOperation === 'subtraction' ? '-' : 
+                 selectedOperation === 'multiplication' ? '×' : 
+                 selectedOperation === 'division' ? '÷' : '🔀'}
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-between w-full px-2">
             <div className="flex flex-col items-center">
